@@ -1,0 +1,10 @@
+services:
+  wifi-manager:
+    build: .
+    container_name: smart_vehicle_wifi
+    network_mode: "host"
+    privileged: true
+    restart: always
+    volumes:
+      - /var/run/dbus:/var/run/dbus
+      - /etc/NetworkManager/system-connections:/etc/NetworkManager/system-connections
