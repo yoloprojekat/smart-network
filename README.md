@@ -30,6 +30,7 @@ docker pull https://hub.docker.com/repository/docker/yoloprojekat/smart-network
 <div align="center">
 
 Autor: **Danilo Stoletović** 
+<br>
 **ETŠ „Nikola Tesla“ Niš • 2026**
 
 </div>
