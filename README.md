@@ -9,7 +9,7 @@ Glavni cilj ovog rešenja je da obezbedi stopostotnu dostupnost vozila (Raspberr
 * **Automatski Failover:** Ukoliko sistem ne pronađe nijednu poznatu (sačuvanu) Wi-Fi mrežu, automatski podiže sopstveni **WPA2 Hotspot**.
 * **Samostalni Oporavak (Self-Healing):** Na svakih 120 sekundi sistem skenira okruženje. Čim se pojavi poznata mreža (npr. kućni ruter ili školski Wi-Fi), sistem gasi Hotspot i povezuje se kao klijent.
 * **Dockerized Arhitektura:** Kompletna logika je spakovana u lagani Docker kontejner, što omogućava brzu instalaciju i izolaciju od ostatka sistema.
-* **mDNS Pristup:** Bez obzira na to da li je vozilo u Hotspot ili Client režimu, uvek mu možete pristupiti preko hostname-a (npr. `http://pametno.local`).
+* **mDNS Pristup:** Bez obzira na to da li je vozilo u Hotspot ili Client režimu, uvek mu možete pristupiti preko hostname-a (npr. `http://pametno-vozilo.local`).
 * **Optimizovano za Raspberry Pi 5:** Koristi `NetworkManager` putem D-Bus interfejsa, što je standard za najnoviji Raspberry Pi OS (Bookworm).
 
 ## 🛠️ Kako to funkcioniše?
@@ -23,19 +23,13 @@ Sistem koristi Python skriptu unutar Docker kontejnera koja komunicira sa host o
 
 ## 📦 Instalacija
 
-Najlakši način za pokretanje je korišćenje `docker-compose.yml` fajla:
+```
+docker pull https://hub.docker.com/repository/docker/yoloprojekat/smart-network
+```
 
-```yaml
-services:
-  smart-network:
-    image: tvoj-docker-username/smart-network:latest
-    container_name: smart-network
-    restart: always
-    network_mode: "host"
-    privileged: true
-    volumes:
-      - /var/run/dbus:/var/run/dbus
-    environment:
-      - HOTSPOT_SSID=SmartNetwork_AP
-      - HOTSPOT_PASS=galaksija2026
-      - CHECK_INTERVAL=120
+<div align="center">
+
+Autor: **Danilo Stoletović** 
+**ETŠ „Nikola Tesla“ Niš • 2026**
+
+</div>
