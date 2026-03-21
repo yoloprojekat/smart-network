@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy your script
-COPY manager.py .
+COPY main.py .
 
 # Run the script
 CMD ["python3", "main.py"]
