@@ -3,7 +3,7 @@ import time
 import os
 
 # Configuration from Environment
-SSID = os.getenv("HOTSPOT_SSID", "SmartNetwork_AP")
+SSID = os.getenv("HOTSPOT_SSID", "Pametno-Vozilo_AP")
 PASSWORD = os.getenv("HOTSPOT_PASS", "galaksija2026")
 INTERVAL = int(os.getenv("CHECK_INTERVAL", 120)) 
 
