@@ -39,7 +39,7 @@ echo "🚀 Installing Smart Network (Pure Bash + wpa_supplicant)..."
 # Ensure essential dependencies are installed
 echo "📦 Checking and installing dependencies..."
 DEPS_TO_INSTALL=()
-for pkg in wpa_supplicant dnsmasq iproute2 wireless-tools; do
+for pkg in wpasupplicant dnsmasq iproute2 wireless-tools; do
     if ! dpkg -s "$pkg" >/dev/null 2>&1; then
         DEPS_TO_INSTALL+=("$pkg")
     fi
