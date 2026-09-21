@@ -1,6 +1,6 @@
 [Unit]
-Description=Smart Network Failover Hotspot (wpa_supplicant)
-After=network.target wpa_supplicant.service
+Description=Smart Network Failover Hotspot (DietPi / wpasupplicant)
+After=local-fs.target sysinit.target
 Wants=wpa_supplicant.service
 
 [Service]
