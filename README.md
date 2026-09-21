@@ -1,80 +1,80 @@
 # 🌐 Smart Network (Failover Hotspot)
 
-**Smart Network** je ultra-lagani, inteligentni mrežni modul razvijen za platformu **Pametno Vozilo** (optimizovan za **DietPi OS** i **Debian / Raspberry Pi OS**). Projekat je kreiran kao deo rešenja za nacionalno takmičenje **Galaksija Kup 2026**.
+**Smart Network** is an ultra-lightweight, intelligent network module engineered for the **Smart Vehicle** platform (optimized for **DietPi OS** and **Debian / Raspberry Pi OS**). This project was developed as part of the solution for the national competition **Galaksija Kup 2026**.
 
-Glavni cilj ovog rešenja je da obezbedi stopostotnu dostupnost Raspberry Pi 5 uređaja u mreži: ukoliko vozilo nije povezano na poznatu Wi-Fi mrežu, automatski i trenutno se podiže lokalni **WPA2 Access Point (Hotspot)** sa omogućenim **SSH pristupom**. Čim poznata mreža postane dostupna u okruženju (a Hotspot nije u aktivnoj upotrebi), sistem se neprimetno vraća u klijentski režim.
-
----
-
-## ⚡ Zašto smo uklonili Docker, Python i NetworkManager?
-
-U ranijim verzijama projekta sistem je koristio Docker kontejner, Python skriptu i NetworkManager. Tokom testiranja na Raspberry Pi 5 uočeni su ozbiljni nedostaci:
-
-* ⏱️ **Ubrzanje boot-a (uklonjeno kašnjenje od ~1 min):** Podizanje Docker daemona i pokretanje kontejnera produžavalo je vreme boot-a za **više od 1 minut**.
-* 🪶 **Minimalna potrošnja resursa:** Docker kontejner i Python runtime trošili su preko 150 MB RAM-a i generisali nepotreban I/O. Prelaskom na čistu **Bash skriptu** i direktan rad sa **`wpasupplicant`**-om, potrošnja memorije svedena je na svega **~2 MB**.
-* 🚀 **Neblokirajući i brz start (`systemd`):** Novi servis je podešen kao `Type=simple` unutar `systemd`-a. Servis se startuje asinhrono u pozadini pri svakom startovanju sistema, ne usporava boot proces i u roku od **5 sekundi** podiže Hotspot ukoliko nema poznatih mreža.
+The primary objective of this solution is to guarantee 100% network accessibility for the Raspberry Pi 5: whenever the vehicle is not connected to a known Wi-Fi network, a local **WPA2 Access Point (Hotspot)** is automatically and instantly created with **SSH access** enabled. As soon as a known network becomes available in the area (and the Hotspot is not in active use), the system seamlessly returns to client station mode.
 
 ---
 
-## 🚀 Ključne Karakteristike & Stabilnost
+## ⚡ Why We Removed Docker, Python, and NetworkManager
 
-* **Brzi Failover (~5 sekundi):** Pri podizanju sistema vrši se kratka provera (5s). Ako vozilo nije povezano na sačuvanu mrežu, Hotspot se odmah aktivira.
-* **Zaštita aktivnih konekcija (Rock-Solid):** Hotspot se **nikada ne prekida** dok god je klijent povezan (npr. otvoren SSH terminal ili web sesija). Reskeniranje se vrši isključivo kada nema povezanih klijenata.
-* **Garantovan SSH Pristup:**
-  * Skripta dodeljuje vozilu statičku IP adresu (`192.168.4.1/24`).
-  * Pokreće namenski, nekonfliktni DHCP servis (`dnsmasq` sa `--port=0` i `--bind-dynamic`) koji dodeljuje IP adrese uređajima koji se povežu.
-  * Automatski verifikuje i po potrebi startuje SSH servis (**Dropbear** na DietPi-ju ili **OpenSSH**).
-* **Kompatibilnost sa DietPi OS:** Prilagođeno za DietPi paket `wpasupplicant`, `ifupdown` i Dropbear SSH.
-* **WPA2 CCMP/AES standard:** Konfigurisano sa `proto RSN`, `pairwise CCMP` i `group CCMP` kako moderni telefoni (Android, iPhone) i laptopovi ne bi odbijali vezu.
-* **Samostalni Oporavak (Self-Healing):** Kada je Hotspot u stanju mirovanja (nema povezanih klijenata), sistem u pozadini proverava da li se pojavila poznata Wi-Fi mreža i automatski se prebacuje na nju.
+Earlier iterations of the project relied on a Docker container, a Python script, and NetworkManager. Real-world testing on the Raspberry Pi 5 revealed critical issues:
+
+* ⏱️ **Eliminated Boot Delay (~1 Minute Saved):** Initializing the Docker daemon and launching containers on Raspberry Pi OS / DietPi prolonged system boot by **more than 1 minute**.
+* 🪶 **Minimal Resource Footprint:** The Docker container and Python runtime consumed over 150 MB of RAM and generated continuous disk I/O. Switching to a pure **Bash script** directly managing **`wpasupplicant`** reduced memory usage to just **~2 MB**.
+* 🚀 **Non-Blocking, Instant Startup (`systemd`):** The service is configured as `Type=simple` under `systemd`. It runs asynchronously in the background upon boot, never blocks system startup targets, and activates the Hotspot in under **5 seconds** if no known networks are present.
 
 ---
 
-## 🛠️ Kako sistem funkcioniše?
+## 🚀 Key Features & Rock-Solid Stability
+
+* **Fast Failover (~5 Seconds):** On boot, the system performs a quick 5-second check. If the vehicle is not connected to a saved network, the Hotspot activates immediately.
+* **Active Session Protection (Never Drops):** The Hotspot is **never interrupted** while a client is actively connected (e.g., during an active SSH session or web connection). Network rescans only take place when the Hotspot is completely idle.
+* **Guaranteed SSH Access:**
+  * Assigns a static IP address (`192.168.4.1/24`) to the wireless interface.
+  * Spawns a dedicated, conflict-free DHCP server (`dnsmasq` with `--port=0` and `--bind-dynamic`) to lease IP addresses to connecting devices.
+  * Automatically verifies, unmasks, and starts the SSH daemon (**Dropbear** on DietPi or **OpenSSH**).
+* **DietPi OS Compatibility:** Tailored for DietPi's `wpasupplicant` package, `ifupdown`, and Dropbear SSH, automatically disabling `AUTO_SETUP_BOOT_WAIT_FOR_NETWORK` multi-minute boot freezes.
+* **WPA2 CCMP/AES Standard:** Explicitly configured with `proto RSN`, `pairwise CCMP`, and `group CCMP` to ensure modern smartphones (iOS, Android) and laptops connect reliably without handshake rejections.
+* **Self-Healing Reconnection:** While the Hotspot is idle (no clients connected), the system checks in the background for known Wi-Fi networks and automatically reconnects once in range.
+
+---
+
+## 🛠️ How It Works
 
 ```
                ┌────────────────────────┐
-               │    Sistem se podiže    │
-               │ (neblokirajući systemd) │
+               │      System Boot       │
+               │ (non-blocking systemd) │
                └───────────┬────────────┘
                            ▼
                ┌────────────────────────┐
-               │ Provera Wi-Fi statusa  │◄─────────────────────────┐
-               │     (do 5 sekundi)     │                          │
+               │ Check Wi-Fi Connection │◄─────────────────────────┐
+               │   (up to 5 seconds)    │                          │
                └───────────┬────────────┘                          │
-              Povezan?     │ Nije povezan                          │
+              Connected?   │ Disconnected                          │
           ┌────────────────┴──────────────┐                        │
           ▼                               ▼                        │
-   [Klijent Režim]             [Trenutno podizanje AP]             │
-Sačuvana mreža aktivna           SSID: Pametno-Vozilo_AP           │
-   (Vozilo na mreži)             IP: 192.168.4.1 (SSH aktivan)     │
+   [Client Mode]               [Instant Hotspot Boot]              │
+Connected to saved Wi-Fi         SSID: Pametno-Vozilo_AP           │
+  (Vehicle on LAN/Web)           IP: 192.168.4.1 (SSH active)      │
           │                               │                        │
           │                               ▼                        │
           │                     ┌────────────────────┐             │
-          │                     │ Povezan klijent?   │             │
-          │                     │ (SSH sesija / mob) │             │
+          │                     │ Client Connected?  │             │
+          │                     │ (SSH session / mob)│             │
           │                     └─────────┬──────────┘             │
-          │                       Da │    │ Ne (u mirovanju)       │
-          │            Održi stabilan │    ▼                        │
-          │            Hotspot vezu   │  Skeniraj za poznate mreže │
-          │                          │    │                        │
-          │                          │    │ Pronađena?             │
-          │                          │    ├── Da ──► [Ugasi AP &   │
-          │                          │    │         Poveži klijent]│
-          │                          │    └── Ne ──► [Ostani u AP] │
-          └───────────────────┬──────┴─────────────────────────────┘
+          │                       Yes │   │ No (idle)              │
+          │           Maintain stable │   ▼                        │
+          │              Hotspot link │ Scan for saved networks    │
+          │                           │   │                        │
+          │                           │   │ Found?                 │
+          │                           │   ├── Yes ─► [Stop AP &    │
+          │                           │   │          Connect WiFi] │
+          │                           │   └── No ──► [Stay in AP]  │
+          └───────────────────┬───────┴────────────────────────────┘
                               │
                               ▼
-                   Čekaj CHECK_INTERVAL (120s)
+                  Wait CHECK_INTERVAL (120s)
                               │
                               └────────────────────────────────────┘
 ```
 
 ---
 
-## 📦 Instalacija
+## 📦 Installation
 
-Preuzmite repozitorijum i pokrenite instalacionu skriptu sa root privilegijama:
+Clone the repository and run the installation script with root privileges:
 
 ```bash
 git clone https://github.com/yoloprojekat/smart-network.git
@@ -82,87 +82,91 @@ cd smart-network
 sudo bash install.sh
 ```
 
-Skripta će automatski:
-1. Instalirati neophodne pakete (`wpasupplicant`, `dnsmasq`, `wireless-tools`, `iw`, `rfkill`).
-2. Osigurati prisustvo `ctrl_interface` u `/etc/wpa_supplicant/wpa_supplicant.conf`.
-3. Osigurati da je SSH servis (`dropbear` ili `ssh`) omogućen i pokrenut.
-4. Instalirati skriptu u `/opt/smart-network/smart-network.sh`.
-5. Kreirati konfiguracioni fajl `/etc/default/smart-network`.
-6. Instalirati `smart-network.service` u `/etc/systemd/system/`.
-7. Učitati i odmah aktivirati servis (`systemctl enable --now smart-network.service`).
+The installer will automatically:
+1. Optimize DietPi boot parameters by setting `AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=0` and disabling blocking wait services.
+2. Install required dependencies (`wpasupplicant`, `dnsmasq`, `wireless-tools`, `iw`, `rfkill`).
+3. Ensure the `ctrl_interface` socket configuration is present in `/etc/wpa_supplicant/wpa_supplicant.conf`.
+4. Ensure the SSH service (`dropbear` or `ssh`) is enabled, unmasked, and running.
+5. Install the daemon script to `/opt/smart-network/smart-network.sh`.
+6. Create the configuration file at `/etc/default/smart-network`.
+7. Install `smart-network.service` to `/etc/systemd/system/`.
+8. Reload systemd and immediately enable & start the service (`systemctl enable --now smart-network.service`).
 
 ---
 
-## 🔑 Povezivanje i SSH pristup
+## 🔑 Connecting & SSH Access
 
-1. Kada vozilo nije na poznatoj Wi-Fi mreži, potražite Wi-Fi mrežu:
+1. When the vehicle is not in range of a known Wi-Fi network, look for the following Wi-Fi access point:
    * **SSID:** `Pametno-Vozilo_AP`
-   * **Šifra:** `galaksija2026`
-2. Vaš uređaj (laptop/telefon) će automatski dobiti IP adresu iz opsega `192.168.4.x`.
-3. Povežite se preko SSH-a:
+   * **Password:** `galaksija2026`
+2. Your device (laptop, smartphone, tablet) will automatically receive an IP address in the `192.168.4.x` range.
+3. Connect via SSH:
    ```bash
    ssh root@192.168.4.1
-   # ili:
+   # or:
    ssh dietpi@192.168.4.1
    ```
-   *(Podrazumevana šifra za `root` i `dietpi` na DietPi OS-u je `pi`)*
+   *(Default password for `root` and `dietpi` on DietPi OS is `pi`)*
 
 ---
 
-## ⚙️ Konfiguracija
+## ⚙️ Configuration
 
-Podešavanja se po želji menjaju u fajlu `/etc/default/smart-network`:
+Settings can be customized in `/etc/default/smart-network` without modifying the core script:
 
 ```bash
 sudo nano /etc/default/smart-network
 ```
 
-Primer konfiguracije:
+Example configuration:
 ```bash
-# Naziv Hotspot mreže koju vozilo emituje
+# Hotspot SSID broadcasted by the vehicle
 HOTSPOT_SSID="Pametno-Vozilo_AP"
 
-# Šifra Hotspot mreže (minimalno 8 karaktera)
+# Hotspot WPA2 Password (minimum 8 characters)
 HOTSPOT_PASS="galaksija2026"
 
-# Interval provere dostupnosti poznatih mreža u mirovanju (sekunde)
+# Interval to check for saved networks when idle (in seconds)
 CHECK_INTERVAL=120
 
-# Wi-Fi interfejs (podrazumevano wlan0)
+# Wireless interface (default: wlan0)
 WLAN_INTERFACE="wlan0"
 
-# IP adresa vozila u Hotspot režimu
+# Static IP of the vehicle in Hotspot mode
 HOTSPOT_IP="192.168.4.1"
 HOTSPOT_SUBNET="24"
+
+# Wireless Regulatory Domain
+WIFI_COUNTRY="RS"
 ```
 
-Nakon izmene konfiguracije, primenite izmene restartom servisa:
+After modifying the configuration, apply changes by restarting the service:
 ```bash
 sudo systemctl restart smart-network
 ```
 
 ---
 
-## 📊 Praćenje rada i statusa
+## 📊 Monitoring & Status
 
-* **Status servisa:**
+* **Check service status:**
   ```bash
   sudo systemctl status smart-network
   ```
-* **Praćenje logova uživo:**
+* **Follow live logs in real time:**
   ```bash
   sudo journalctl -u smart-network -f
   ```
-* **Status povezanih uređaja na Hotspot:**
+* **View connected clients (stations):**
   ```bash
   sudo iw dev wlan0 station dump
   ```
 
 ---
 
-## 🗑️ Deinstalacija
+## 🗑️ Uninstallation
 
-Ukoliko želite da u potpunosti uklonite servis i instalirane fajlove:
+To cleanly remove the service and all installed files:
 
 ```bash
 sudo bash install.sh --uninstall
@@ -172,7 +176,7 @@ sudo bash install.sh --uninstall
 
 <div align="center">
 
-Autor: **Danilo Stoletović**  
-**ETŠ „Nikola Tesla“ Niš • 2026**
+Author: **Danilo Stoletović**  
+**Technical School „Nikola Tesla“ Niš • 2026**
 
 </div>
