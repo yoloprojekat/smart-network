@@ -1,0 +1,14 @@
+[Unit]
+Description=Smart Network Failover Hotspot (wpa_supplicant)
+After=network.target wpa_supplicant.service
+Wants=wpa_supplicant.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /opt/smart-network/smart-network.sh
+Restart=always
+RestartSec=5s
+EnvironmentFile=-/etc/default/smart-network
+
+[Install]
+WantedBy=multi-user.target
