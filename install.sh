@@ -63,6 +63,15 @@ for pkg in wpasupplicant dnsmasq iproute2 wireless-tools iw rfkill; do
     fi
 done
 
+# Ensure a DHCP client is available (dhclient, udhcpc, or dhcpcd)
+if ! command -v dhclient >/dev/null 2>&1 && \
+   ! command -v udhcpc >/dev/null 2>&1 && \
+   ! command -v dhcpcd >/dev/null 2>&1; then
+    if ! dpkg -s "isc-dhcp-client" >/dev/null 2>&1; then
+        DEPS_TO_INSTALL+=("isc-dhcp-client")
+    fi
+fi
+
 if [ ${#DEPS_TO_INSTALL[@]} -gt 0 ]; then
     echo "Installing missing packages: ${DEPS_TO_INSTALL[*]}"
     apt-get update
@@ -94,7 +103,7 @@ fi
 # 4. Ensure wpa_supplicant control interface configuration exists
 echo "📡 Verifying wpa_supplicant configuration at $WPA_CONF..."
 mkdir -p "$(dirname "$WPA_CONF")"
-if [ ! -f "$WPA_CONF" ]; then
+if [ ! -s "$WPA_CONF" ]; then
     cat << 'EOF' > "$WPA_CONF"
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
@@ -145,12 +154,13 @@ echo "📦 Installing systemd service unit to $SYSTEMD_DIR/$SERVICE_NAME..."
 cp "$SCRIPT_DIR/smart-network.service" "$SYSTEMD_DIR/$SERVICE_NAME"
 chmod 644 "$SYSTEMD_DIR/$SERVICE_NAME"
 
-# 7. Reload systemd and enable + start immediately
+# 7. Reload systemd and enable + restart immediately
 echo "🔄 Reloading systemd daemon..."
 systemctl daemon-reload
 
 echo "⚡ Enabling and starting $SERVICE_NAME now..."
-systemctl enable --now "$SERVICE_NAME"
+systemctl enable "$SERVICE_NAME"
+systemctl restart "$SERVICE_NAME"
 
 echo ""
 echo "🎉 Installation complete! Smart Network is running as an ultra-lightweight systemd service."
