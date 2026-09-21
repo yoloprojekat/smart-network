@@ -12,13 +12,13 @@ Earlier iterations of the project relied on a Docker container, a Python script,
 
 * ⏱️ **Eliminated Boot Delay (~1 Minute Saved):** Initializing the Docker daemon and launching containers on Raspberry Pi OS / DietPi prolonged system boot by **more than 1 minute**.
 * 🪶 **Minimal Resource Footprint:** The Docker container and Python runtime consumed over 150 MB of RAM and generated continuous disk I/O. Switching to a pure **Bash script** directly managing **`wpasupplicant`** reduced memory usage to just **~2 MB**.
-* 🚀 **Non-Blocking, Instant Startup (`systemd`):** The service is configured as `Type=simple` under `systemd`. It runs asynchronously in the background upon boot, never blocks system startup targets, and activates the Hotspot in under **10 seconds** if no known networks are present.
+* 🚀 **Non-Blocking, Instant Startup (`systemd`):** The service is configured as `Type=simple` under `systemd`. It runs asynchronously in the background upon boot, never blocks system startup targets, and activates the Hotspot in under **5 seconds** if no known networks are present.
 
 ---
 
 ## 🚀 Key Features & Rock-Solid Stability
 
-* **Fast Failover (~10 Seconds):** On boot, the system performs a quick check (up to 10 seconds) to associate with saved Wi-Fi networks and acquire an IP address via DHCP. If no known network is found, the Hotspot activates immediately.
+* **Fast Failover (~5 Seconds):** On boot, the system performs a quick 5-second check. If the vehicle is not connected to a saved network, the Hotspot activates immediately.
 * **Active Session Protection (Never Drops):** The Hotspot is **never interrupted** while a client is actively connected (e.g., during an active SSH session or web connection). Network rescans only take place when the Hotspot is completely idle.
 * **Guaranteed SSH Access:**
   * Assigns a static IP address (`192.168.4.1/24`) to the wireless interface.
@@ -40,7 +40,7 @@ Earlier iterations of the project relied on a Docker container, a Python script,
                            ▼
                ┌────────────────────────┐
                │ Check Wi-Fi Connection │◄─────────────────────────┐
-               │   (up to 10 seconds)   │                          │
+               │   (up to 5 seconds)    │                          │
                └───────────┬────────────┘                          │
               Connected?   │ Disconnected                          │
           ┌────────────────┴──────────────┐                        │
