@@ -1,32 +1,32 @@
 # 🌐 Smart Network (Failover Hotspot)
 
-**Smart Network** is an ultra-lightweight, intelligent network module engineered for the **Smart Vehicle** platform (optimized for **DietPi OS** and **Debian / Raspberry Pi OS**). This project was developed as part of the solution for the national competition **Galaksija Kup 2026**.
+**Smart Network** is an ultra-lightweight, intelligent failover network module engineered for **Raspberry Pi OS Lite** (Raspberry Pi 5 / 4 / 3 / Zero) powered natively by **NetworkManager (`nmcli`)** and **`systemd`**. This project was developed as part of the autonomous platform for the national competition **Galaksija Kup 2026**.
 
-The primary objective of this solution is to guarantee 100% network accessibility for the Raspberry Pi 5: whenever the vehicle is not connected to a known Wi-Fi network, a local **WPA2 Access Point (Hotspot)** is automatically and instantly created with **SSH access** enabled. As soon as a known network becomes available in the area (and the Hotspot is not in active use), the system seamlessly returns to client station mode.
+The primary objective of this solution is to guarantee 100% network accessibility for the Raspberry Pi: whenever the vehicle is not connected to a known Wi-Fi network, a local **WPA2 Access Point (Hotspot)** is automatically and instantly created with **SSH access** enabled. As soon as a known network becomes available in the area (and the Hotspot is not in active use), the system seamlessly returns to client station mode.
 
 ---
 
-## ⚡ Why We Removed Docker, Python, and NetworkManager
+## ⚡ Why Native NetworkManager & systemd?
 
-Earlier iterations of the project relied on a Docker container, a Python script, and NetworkManager. Real-world testing on the Raspberry Pi 5 revealed critical issues:
+Raspberry Pi OS (Bookworm and newer) uses **NetworkManager** as its official, standard networking stack. Smart Network leverages this native infrastructure directly:
 
-* ⏱️ **Eliminated Boot Delay (~1 Minute Saved):** Initializing the Docker daemon and launching containers on Raspberry Pi OS / DietPi prolonged system boot by **more than 1 minute**.
-* 🪶 **Minimal Resource Footprint:** The Docker container and Python runtime consumed over 150 MB of RAM and generated continuous disk I/O. Switching to a pure **Bash script** directly managing **`wpasupplicant`** reduced memory usage to just **~2 MB**.
-* 🚀 **Non-Blocking, Instant Startup (`systemd`):** The service is configured as `Type=simple` under `systemd`. It runs asynchronously in the background upon boot, never blocks system startup targets, and activates the Hotspot in under **5 seconds** if no known networks are present.
+* ⏱️ **Zero Boot Delay (~5-Second Startup):** Traditional setups often freeze for 1–2 minutes at boot if offline due to systemd wait-online targets. Smart Network runs asynchronously as a `Type=simple` systemd service and masks blocking wait services, bringing the Hotspot online in seconds.
+* 🪶 **Ultra-Minimal Resource Footprint:** By replacing heavy containers and Python runtimes with a streamlined Bash daemon interacting directly with `nmcli`, memory usage is kept under **~3 MB** with negligible CPU consumption.
+* 🛡️ **Native DHCP & AP Management:** Employs NetworkManager's native `ipv4.method shared` mode (powered by `dnsmasq-base`), eliminating manual socket and PID management while providing rock-solid DHCP leasing to connecting clients.
+* 🔌 **Seamless OS Integration:** Works out of the box with standard Raspberry Pi OS tools like `nmtui`, `nmcli`, and `raspi-config`.
 
 ---
 
 ## 🚀 Key Features & Rock-Solid Stability
 
-* **Fast Failover (~5 Seconds):** On boot, the system performs a quick 5-second check. If the vehicle is not connected to a saved network, the Hotspot activates immediately.
-* **Active Session Protection (Never Drops):** The Hotspot is **never interrupted** while a client is actively connected (e.g., during an active SSH session or web connection). Network rescans only take place when the Hotspot is completely idle.
+* **Fast Failover (~5–8 Seconds):** On system boot, the daemon performs a quick probe. If the device does not associate with a saved Wi-Fi network, the Hotspot activates immediately.
+* **Active Session Protection (Never Drops):** The Hotspot is **never interrupted** while a client is actively connected (e.g., during an active SSH session or configuration). Rescans for saved networks only occur when the Hotspot is completely idle.
 * **Guaranteed SSH Access:**
-  * Assigns a static IP address (`192.168.4.1/24`) to the wireless interface.
-  * Spawns a dedicated, conflict-free DHCP server (`dnsmasq` with `--port=0` and `--bind-dynamic`) to lease IP addresses to connecting devices.
-  * Automatically verifies, unmasks, and starts the SSH daemon (**Dropbear** on DietPi or **OpenSSH**).
-* **DietPi OS Compatibility:** Tailored for DietPi's `wpasupplicant` package, `ifupdown`, and Dropbear SSH, automatically disabling `AUTO_SETUP_BOOT_WAIT_FOR_NETWORK` multi-minute boot freezes.
-* **WPA2 CCMP/AES Standard:** Explicitly configured with `proto RSN`, `pairwise CCMP`, and `group CCMP` to ensure modern smartphones (iOS, Android) and laptops connect reliably without handshake rejections.
-* **Self-Healing Reconnection:** While the Hotspot is idle (no clients connected), the system checks in the background for known Wi-Fi networks and automatically reconnects once in range.
+  * Assigns a static gateway IP (`192.168.4.1/24`) to the wireless interface.
+  * Manages DHCP leasing automatically for connected phones, laptops, and tablets.
+  * Automatically verifies, unmasks, and maintains the OpenSSH daemon (`ssh.service`).
+* **WPA2 CCMP/AES Security:** Configured with `proto RSN`, `pairwise CCMP`, and `group CCMP` to ensure immediate and reliable connection from modern iOS, Android, macOS, Linux, and Windows devices.
+* **Self-Healing Reconnection:** While the Hotspot is idle (no clients connected), the daemon scans for saved Wi-Fi networks in the background and automatically switches back to client mode once back in range.
 
 ---
 
@@ -40,7 +40,7 @@ Earlier iterations of the project relied on a Docker container, a Python script,
                            ▼
                ┌────────────────────────┐
                │ Check Wi-Fi Connection │◄─────────────────────────┐
-               │   (up to 5 seconds)    │                          │
+               │   (probe max 8s)       │                          │
                └───────────┬────────────┘                          │
               Connected?   │ Disconnected                          │
           ┌────────────────┴──────────────┐                        │
@@ -52,7 +52,7 @@ Connected to saved Wi-Fi         SSID: Pametno-Vozilo_AP           │
           │                               ▼                        │
           │                     ┌────────────────────┐             │
           │                     │ Client Connected?  │             │
-          │                     │ (SSH session / mob)│             │
+          │                     │ (SSH / Mobile / PC)│             │
           │                     └─────────┬──────────┘             │
           │                       Yes │   │ No (idle)              │
           │           Maintain stable │   ▼                        │
@@ -74,7 +74,7 @@ Connected to saved Wi-Fi         SSID: Pametno-Vozilo_AP           │
 
 ## 📦 Installation
 
-Clone the repository and run the installation script with root privileges:
+Clone the repository to your Raspberry Pi and run the installation script with root privileges:
 
 ```bash
 git clone https://github.com/yoloprojekat/smart-network.git
@@ -83,14 +83,14 @@ sudo bash install.sh
 ```
 
 The installer will automatically:
-1. Optimize DietPi boot parameters by setting `AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=0` and disabling blocking wait services.
-2. Install required dependencies (`wpasupplicant`, `dnsmasq`, `wireless-tools`, `iw`, `rfkill`).
-3. Ensure the `ctrl_interface` socket configuration is present in `/etc/wpa_supplicant/wpa_supplicant.conf`.
-4. Ensure the SSH service (`dropbear` or `ssh`) is enabled, unmasked, and running.
+1. Optimize boot speed by masking blocking wait-online services (`NetworkManager-wait-online.service`, `systemd-networkd-wait-online.service`).
+2. Install necessary packages (`network-manager`, `dnsmasq-base`, `wireless-tools`, `iw`, `rfkill`).
+3. Ensure Wi-Fi radio is unblocked and configure regulatory domain (`RS`).
+4. Ensure OpenSSH server is enabled, unmasked, and running.
 5. Install the daemon script to `/opt/smart-network/smart-network.sh`.
 6. Create the configuration file at `/etc/default/smart-network`.
-7. Install `smart-network.service` to `/etc/systemd/system/`.
-8. Reload systemd and immediately enable & start the service (`systemctl enable --now smart-network.service`).
+7. Install and enable `smart-network.service` under `systemd`.
+8. Start the service immediately.
 
 ---
 
@@ -102,11 +102,9 @@ The installer will automatically:
 2. Your device (laptop, smartphone, tablet) will automatically receive an IP address in the `192.168.4.x` range.
 3. Connect via SSH:
    ```bash
-   ssh root@192.168.4.1
-   # or:
-   ssh dietpi@192.168.4.1
+   ssh pi@192.168.4.1
+   # (or use the username configured during your Raspberry Pi OS setup)
    ```
-   *(Default password for `root` and `dietpi` on DietPi OS is `pi`)*
 
 ---
 
@@ -120,6 +118,9 @@ sudo nano /etc/default/smart-network
 
 Example configuration:
 ```bash
+# NetworkManager connection profile name
+HOTSPOT_CON_NAME="smart-hotspot"
+
 # Hotspot SSID broadcasted by the vehicle
 HOTSPOT_SSID="Pametno-Vozilo_AP"
 
@@ -157,6 +158,10 @@ sudo systemctl restart smart-network
   ```bash
   sudo journalctl -u smart-network -f
   ```
+* **Check NetworkManager device state:**
+  ```bash
+  nmcli dev status
+  ```
 * **View connected clients (stations):**
   ```bash
   sudo iw dev wlan0 station dump
@@ -166,7 +171,7 @@ sudo systemctl restart smart-network
 
 ## 🗑️ Uninstallation
 
-To cleanly remove the service and all installed files:
+To cleanly remove the service, the NetworkManager hotspot profile, and all installed files:
 
 ```bash
 sudo bash install.sh --uninstall

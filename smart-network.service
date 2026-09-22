@@ -1,12 +1,12 @@
 [Unit]
-Description=Smart Network Failover Hotspot (DietPi / wpasupplicant)
-After=network.target wpa_supplicant.service
-Wants=wpa_supplicant.service
+Description=Smart Network Failover Hotspot (Raspberry Pi OS / NetworkManager)
+After=network.target NetworkManager.service
+Wants=NetworkManager.service
 
 [Service]
 Type=simple
 ExecStart=/bin/bash /opt/smart-network/smart-network.sh
-Restart=always
+Restart=on-failure
 RestartSec=5s
 EnvironmentFile=-/etc/default/smart-network
 

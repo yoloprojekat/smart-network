@@ -2,15 +2,14 @@
 set -e
 
 # ==============================================================================
-# Smart Network Installer (DietPi OS / Debian)
-# Ultra-lightweight failover hotspot (Pure Bash + wpasupplicant + systemd)
+# Smart Network Installer (Raspberry Pi OS Lite / Debian)
+# Failover hotspot powered by NetworkManager (nmcli) & systemd
 # ==============================================================================
 
 SERVICE_NAME="smart-network.service"
 INSTALL_DIR="/opt/smart-network"
 SYSTEMD_DIR="/etc/systemd/system"
 CONFIG_FILE="/etc/default/smart-network"
-WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Verify root privileges
@@ -28,6 +27,13 @@ if [ "${1:-}" = "--uninstall" ] || [ "${1:-}" = "-u" ]; then
     if systemctl is-enabled --quiet "$SERVICE_NAME" 2>/dev/null; then
         systemctl disable "$SERVICE_NAME"
     fi
+
+    # Remove NetworkManager hotspot connection profile if present
+    if command -v nmcli >/dev/null 2>&1; then
+        echo "Removing SmartHotspot profile from NetworkManager..."
+        nmcli connection delete smart-hotspot >/dev/null 2>&1 || true
+    fi
+
     rm -f "$SYSTEMD_DIR/$SERVICE_NAME"
     rm -rf "$INSTALL_DIR"
     systemctl daemon-reload
@@ -35,29 +41,28 @@ if [ "${1:-}" = "--uninstall" ] || [ "${1:-}" = "-u" ]; then
     exit 0
 fi
 
-echo "🚀 Installing Smart Network (DietPi / wpasupplicant edition)..."
+echo "🚀 Installing Smart Network (Raspberry Pi OS Lite edition)..."
 
-# 1. Optimize DietPi boot wait times
-echo "⚡ Checking DietPi boot optimizations..."
-for dietpi_cfg in /boot/dietpi.txt /boot/firmware/dietpi.txt /boot/dietpi/dietpi.txt; do
-    if [ -f "$dietpi_cfg" ]; then
-        if grep -q "^AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=1" "$dietpi_cfg"; then
-            echo "🔧 Disabling DietPi network boot delay (AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=0) in $dietpi_cfg..."
-            sed -i 's/^AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=1/AUTO_SETUP_BOOT_WAIT_FOR_NETWORK=0/' "$dietpi_cfg"
-        fi
-    fi
-done
-
-# Disable dietpi-wait-for-network if enabled in systemd to prevent 60-120s boot freeze
-if systemctl is-enabled --quiet dietpi-wait-for-network 2>/dev/null; then
-    echo "Disabling dietpi-wait-for-network service to prevent boot blocking..."
-    systemctl disable --now dietpi-wait-for-network >/dev/null 2>&1 || true
+# 1. Optimize Raspberry Pi OS boot speed
+echo "⚡ Optimizing boot speed (disabling blocking network wait services)..."
+# Mask wait-online services that cause 90-120s boot freeze when offline
+if systemctl list-unit-files | grep -q -E '^NetworkManager-wait-online\.service'; then
+    systemctl disable --now NetworkManager-wait-online.service >/dev/null 2>&1 || true
+    systemctl mask NetworkManager-wait-online.service >/dev/null 2>&1 || true
 fi
 
-# 2. Ensure essential dependencies are installed
+if systemctl list-unit-files | grep -q -E '^systemd-networkd-wait-online\.service'; then
+    systemctl disable --now systemd-networkd-wait-online.service >/dev/null 2>&1 || true
+    systemctl mask systemd-networkd-wait-online.service >/dev/null 2>&1 || true
+fi
+
+# Remove raspi-config wait-for-network override if present
+rm -f /etc/systemd/system/dhcpcd.service.d/wait.conf 2>/dev/null || true
+
+# 2. Check and install dependencies
 echo "📦 Checking and installing dependencies..."
 DEPS_TO_INSTALL=()
-for pkg in wpasupplicant dnsmasq iproute2 wireless-tools iw rfkill; do
+for pkg in network-manager dnsmasq-base iproute2 wireless-tools iw rfkill; do
     if ! dpkg -s "$pkg" >/dev/null 2>&1; then
         DEPS_TO_INSTALL+=("$pkg")
     fi
@@ -69,48 +74,35 @@ if [ ${#DEPS_TO_INSTALL[@]} -gt 0 ]; then
     apt-get install -y "${DEPS_TO_INSTALL[@]}"
 fi
 
-# Unblock Wi-Fi radio
+# Ensure standalone dnsmasq service does not run globally
+# (NetworkManager uses dnsmasq-base internally on demand for AP DHCP)
+if systemctl is-enabled --quiet dnsmasq 2>/dev/null; then
+    systemctl disable --now dnsmasq >/dev/null 2>&1 || true
+fi
+
+# 3. Ensure Wi-Fi radio is unblocked and operational
+echo "📡 Unblocking Wi-Fi radio..."
 rfkill unblock wifi 2>/dev/null || true
 
-# 3. Ensure SSH daemon (Dropbear on DietPi or OpenSSH) is active and unmasked
-echo "🔑 Verifying SSH service availability..."
-if systemctl list-unit-files | grep -q -E '^dropbear\.service'; then
-    systemctl unmask dropbear >/dev/null 2>&1 || true
-    systemctl enable --now dropbear >/dev/null 2>&1 || true
-elif systemctl list-unit-files | grep -q -E '^ssh\.service'; then
+# Set default wireless regulatory domain
+if command -v iw >/dev/null 2>&1; then
+    iw reg set RS 2>/dev/null || true
+fi
+if command -v raspi-config >/dev/null 2>&1; then
+    raspi-config nonint do_wifi_country RS 2>/dev/null || true
+fi
+
+# 4. Ensure OpenSSH server is active and persistent
+echo "🔑 Verifying OpenSSH server..."
+# Enable SSH flag on Raspberry Pi boot partition
+touch /boot/firmware/ssh 2>/dev/null || touch /boot/ssh 2>/dev/null || true
+
+if systemctl list-unit-files | grep -q -E '^ssh\.service'; then
     systemctl unmask ssh >/dev/null 2>&1 || true
     systemctl enable --now ssh >/dev/null 2>&1 || true
 elif systemctl list-unit-files | grep -q -E '^sshd\.service'; then
     systemctl unmask sshd >/dev/null 2>&1 || true
     systemctl enable --now sshd >/dev/null 2>&1 || true
-fi
-
-# Ensure standalone dnsmasq service does not run globally at boot
-# (Smart Network runs its own scoped DHCP instance on demand)
-if systemctl is-enabled --quiet dnsmasq 2>/dev/null; then
-    systemctl disable --now dnsmasq >/dev/null 2>&1 || true
-fi
-
-# 4. Ensure wpa_supplicant control interface configuration exists
-echo "📡 Verifying wpa_supplicant configuration at $WPA_CONF..."
-mkdir -p "$(dirname "$WPA_CONF")"
-if [ ! -f "$WPA_CONF" ]; then
-    cat << 'EOF' > "$WPA_CONF"
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-country=RS
-EOF
-    chmod 600 "$WPA_CONF"
-else
-    if ! grep -q "ctrl_interface=" "$WPA_CONF"; then
-        sed -i '1i ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev' "$WPA_CONF"
-    fi
-    if ! grep -q "update_config=" "$WPA_CONF"; then
-        sed -i '2i update_config=1' "$WPA_CONF"
-    fi
-    if ! grep -q "country=" "$WPA_CONF"; then
-        sed -i '3i country=RS' "$WPA_CONF"
-    fi
 fi
 
 # 5. Create target directory & copy script
@@ -128,13 +120,13 @@ if [ ! -f "$CONFIG_FILE" ]; then
 # ==========================================
 # Smart Network Configuration
 # ==========================================
+# HOTSPOT_CON_NAME="smart-hotspot"
 # HOTSPOT_SSID="Pametno-Vozilo_AP"
 # HOTSPOT_PASS="galaksija2026"
 # CHECK_INTERVAL=120
 # WLAN_INTERFACE="wlan0"
 # HOTSPOT_IP="192.168.4.1"
 # HOTSPOT_SUBNET="24"
-# HOTSPOT_FREQ="2412"
 # WIFI_COUNTRY="RS"
 EOF
     chmod 644 "$CONFIG_FILE"
@@ -158,7 +150,6 @@ echo "---------------------------------------------------------"
 echo "Status check: sudo systemctl status smart-network"
 echo "Live logs:    sudo journalctl -u smart-network -f"
 echo "Config file:  $CONFIG_FILE"
-echo "SSH login:    ssh root@192.168.4.1 (or ssh dietpi@192.168.4.1)"
-echo "              (Default DietPi password is 'pi')"
+echo "SSH login:    ssh <user>@192.168.4.1 (e.g. ssh pi@192.168.4.1)"
 echo "Uninstall:    sudo bash install.sh --uninstall"
 echo "---------------------------------------------------------"
