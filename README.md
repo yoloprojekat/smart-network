@@ -108,6 +108,23 @@ The installer will automatically:
 
 ---
 
+## 📶 Adding a New Wi-Fi Network
+
+> **Note:** You need to be connected to the Hotspot to be able to add a new Wi-Fi network when the Raspberry Pi is offline or in the field.
+
+1. Connect to the Hotspot (`Pametno-Vozilo_AP`) and access the Raspberry Pi via SSH:
+   ```bash
+   ssh pi@192.168.4.1
+   ```
+2. Add and connect to the new Wi-Fi network using NetworkManager:
+   ```bash
+   sudo nmcli dev wifi connect "SSID_NAME" password "WIFI_PASSWORD"
+   ```
+   *(Or launch the interactive terminal menu with `sudo nmtui`)*.
+3. Once the network profile is saved, disconnect from the Hotspot. Smart Network will detect the new Wi-Fi network during its idle scan and connect to it automatically.
+
+---
+
 ## ⚙️ Configuration
 
 Settings can be customized in `/etc/default/smart-network` without modifying the core script:
